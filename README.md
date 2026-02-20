@@ -6,7 +6,9 @@ User guide: <a href="#review">Documentation</a>
 
 # Build
 
-Make is used for the build. 
+Make is used for the build.
+
+The library and application build targets are located in the build directories.
 
 Dependencies:
  - Make
