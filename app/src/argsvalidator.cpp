@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "argsvalidator.hpp"
 
 ArgsValidator::ArgsValidator(int argc, char const *argv[])
@@ -11,9 +12,10 @@ auto ArgsValidator::getArgs() -> std::pair<std::string, LogLevel>
     params.first = m_argv[1]; // Name of the log file
     if (m_argc == 2) {
         params.second = LogLevel::INFO;
+    } else if(m_argc == 3) {
+        params.second = LogLevelFromString(m_argv[2]);
     } else {
-        std::string logLevel = m_argv[2];
-        params.second = LogLevelFromString(logLevel);
+        throw std::runtime_error("Too many arguments! (Need: <log.txt> <log level>)");
     }
 
     return params;

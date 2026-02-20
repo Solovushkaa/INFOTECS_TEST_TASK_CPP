@@ -3,8 +3,10 @@
 #include "minitestframework.hpp"
 #include "logger.hpp"
 
+// constants
 std::string prFile;
 std::string pubFile;
+// ---------
 
 // --- Log level tests ---
 TEST(testLogLevelConstants)
@@ -153,5 +155,6 @@ int main(int argc, char **argv)
     }
     prFile = argv[1];
     pubFile = argv[2];
+    
     run_all_tests("Start 'liblogger' library tests:");
 }

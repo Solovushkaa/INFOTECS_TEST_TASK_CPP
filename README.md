@@ -2,9 +2,7 @@
 
 A project implementing a library for logging messages with varying severity levels and an application demonstrating the library's functionality.
 
-# Documentation
-
-User guide: <a href="DOC.md">Documentation</a>
+User guide: <a href="#review">Documentation</a>
 
 # Build
 
@@ -31,7 +29,7 @@ The application has two startup parameters: a log file and a default logging lev
 
 Example:
 ```text
-./logger <file.txt> <LogLevel>
+./logger <log.txt> <LogLevel>
 ```
 
 The main menu of the application looks like this:

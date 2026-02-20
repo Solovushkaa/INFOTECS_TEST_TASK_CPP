@@ -4,14 +4,14 @@
 
 int main(int argc, char const *argv[])
 {
-    ArgsValidator validator(argc, argv);
-    if(!validator.is_valid()){
-        std::cout << "Invalid arguments!\n";
-        return 1;
-    }
-    auto loggerParams = validator.getArgs();
-
     try {
+        ArgsValidator validator(argc, argv);
+        if(!validator.is_valid()){
+            std::cout << "Invalid arguments!\n";
+            return 1;
+        }
+        auto loggerParams = validator.getArgs();
+
         const char exitSymbol = 'q';
         Application app(loggerParams, exitSymbol);
         return app.exec();

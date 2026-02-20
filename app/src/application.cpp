@@ -30,7 +30,7 @@ void Application::createLog()
 
     std::function<void()> func = 
         [this, message, logLevel]() 
-        { 
+        {
             m_logger.createLog(message, logLevel); 
             m_logger.flushBuffer();
         };
@@ -50,7 +50,6 @@ LogLevel Application::selectLogLevel()
 {
     LogLevel logLevel = m_logger.getDefaultLogLevel();
 
-    
     char input;
     while(true)
     {
@@ -91,7 +90,7 @@ void Application::clearLogFile()
 
 int Application::getInputIndex(char cIndex)
 {
-    return static_cast<int>(cIndex-'1');
+    return static_cast<int>(cIndex-'1'); // '2'-'1' == 1
 }
 
 void Application::executionBlock(int inputIndex)

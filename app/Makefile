@@ -24,13 +24,13 @@ RAW_SRC := \
 	worker.cpp \
 
 SRC := $(addprefix $(SRC_DIR),$(RAW_SRC))
-MAIN := main.cpp
-LIB := ../liblogger/build/liblogger.so
+MAIN := $(ROOT_DIR)main.cpp
+LIB := $(ROOT_DIR)../liblogger/build/liblogger.so
 
 OBJ := $(addprefix $(OBJ_DIR),$(RAW_SRC:.cpp=.o))
 DEPS := $(OBJ:.o=.d)
 
-TARGET ?= logger
+TARGET ?= $(BUILD_DIR)logger
 
 .PHONY: all
 all: $(TARGET)
@@ -65,7 +65,6 @@ $(UNIT_OUT): $(UNIT_CPP) $(TARGET)
 .PHONY: testrun
 testrun: test
 	$(UNIT_OUT) $(TEST_DIR)
-
 
 .PHONY: testclean
 testclean:

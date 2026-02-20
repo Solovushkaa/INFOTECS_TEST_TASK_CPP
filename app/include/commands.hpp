@@ -46,7 +46,7 @@ public:
 
     // --- Members ---
 private:
-    std::vector<std::pair<std::string, std::function<void()>>> m_commands;  ///< Command vector
+    std::vector<std::pair<std::string, std::function<void()>>> m_commands;  ///< Vector of command
     std::string m_infoBlock;                                                ///< Information block for executable commands
 };
 

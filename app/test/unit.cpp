@@ -6,10 +6,104 @@
 #include "argsvalidator.hpp"
 #include "application.hpp"
 
+using namespace std::chrono_literals;
+namespace tt = std::this_thread;
+
+// constants
+constexpr int mainMenuCommandCreateLog = 1;
+constexpr int mainMenuCommandChangeLogLevel = 2;
+constexpr int mainMenuCommandClearLog = 3;
+constexpr int logLevel = static_cast<int>(LogLevel::INFO)+1;
+constexpr char exitSymbol = 'q';
+constexpr char acceptSymbol = 'y';
+
+const std::string logText = "Text";
+std::string pathToUnitTestApp;
+std::string fileName;
+
+std::pair<std::string, LogLevel> loggerParams;
+// ---------
+
+class File
+{
+public:
+    void clear() {
+        m_file.clear();
+        m_file.open(fileName, std::ios::out | std::ios::trunc);
+        m_file.close();
+    }
+    void input(std::string &newLogFile) {
+        m_file.clear();
+        m_file.open(fileName, std::ios::in);
+        std::getline(m_file, newLogFile);
+        m_file.close();
+    }
+private:
+    std::fstream m_file;
+} file;
+
+
+class StreamRedirect
+{
+public:
+    StreamRedirect()
+    {
+        cinOld = std::cin.rdbuf(fakeCinBuffer.rdbuf());
+        coutOld = std::cout.rdbuf(fakeCoutBuffer.rdbuf());
+    }
+    void setFakeCinBufferForCreateLog() 
+    {
+        fakeCinBuffer << mainMenuCommandCreateLog << "\n";
+        fakeCinBuffer << logText << "\n";
+        fakeCinBuffer << logLevel << "\n";
+        fakeCinBuffer << exitSymbol << "\n";
+    }
+    void setFakeCinBufferForChangeLogLevel()
+    {
+        fakeCinBuffer << mainMenuCommandChangeLogLevel << "\n";
+        fakeCinBuffer << 1+logLevel << "\n"; 
+        fakeCinBuffer << exitSymbol << "\n"; 
+    }
+    void setFakeCinBufferForClearLog()
+    {
+        fakeCinBuffer << mainMenuCommandClearLog << "\n";
+        fakeCinBuffer << acceptSymbol << "\n"; 
+        fakeCinBuffer << exitSymbol << "\n"; 
+    }
+    void setFakeBufferForExit(char exitSymbol)
+    {
+        fakeCinBuffer << exitSymbol << "\n";
+    }
+    std::string getStrFromCoutBuffer()
+    {
+        std::string buffer = fakeCoutBuffer.str();
+        return std::string(buffer.begin(), buffer.end());
+    }
+    void backBuffersToOrigin()
+    {
+        std::cin.rdbuf(cinOld);
+        std::cout.rdbuf(coutOld);
+        std::cin.clear();
+        std::cout.clear();
+    }
+    ~StreamRedirect()
+    {
+        backBuffersToOrigin();
+    }
+
+private:
+    std::streambuf* cinOld;
+    std::streambuf* coutOld;
+    std::stringstream fakeCinBuffer;
+    std::stringstream fakeCoutBuffer;
+};
+
 // --- Worker tests ---
+
+constexpr int numIteration = 1'000;
+
 TEST(testWorkerTaskQueue)
 {
-    const int numIteration = 1'000;
     int value;
     auto fakeFun = [&value](int i){ value = i; };
     Worker worker;
@@ -24,9 +118,7 @@ TEST(testWorkerTaskQueue)
 }
 
 TEST(testWorkerSynchronizationExecutor)
-{
-    const int numIteration = 1'000;
-    
+{   
     std::vector<int> valuesFromWorker;
     valuesFromWorker.reserve(numIteration);
 
@@ -42,8 +134,7 @@ TEST(testWorkerSynchronizationExecutor)
         }));
     }
 
-    using namespace std::chrono_literals;
-    std::this_thread::sleep_for(100ms);
+    tt::sleep_for(100ms); // Waitiing to the worker thread to complete
 
     for(int i = 0; i < numIteration; ++i){
         ASSERT_TRUE(valuesFromWorker[i] == correctValuesOrderFromWorker[i]);
@@ -51,14 +142,16 @@ TEST(testWorkerSynchronizationExecutor)
 }
 
 // --- ArgsValidator tests ---
+
+constexpr const int argc = 3;
+char const *argv[] = {
+    "./program",
+    "file.txt",
+    "INFO"
+};
+
 TEST(testArgsValidatorIsValid)
 {
-    int argc = 3;
-    char const *argv[] = {
-        "./program",
-        "file.txt",
-        "INFO"
-    };
     ArgsValidator argsValidator(argc, argv);
 
     ASSERT_TRUE(argsValidator.is_valid());
@@ -66,19 +159,14 @@ TEST(testArgsValidatorIsValid)
 
 TEST(testArgsValidatorGetArgs)
 {
-    int argc = 3;
     std::string fileName = "file.txt";
-    std::string logLevel = "INFO";
-    char const *argv[] = {
-        "./program",
-        "file.txt",
-        "INFO"
-    };
+    std::string stringLogLevel = "INFO";
+    
     ArgsValidator argsValidator(argc, argv);
 
     auto args = argsValidator.getArgs();
     ASSERT_EQ(args.first, fileName);
-    ASSERT_EQ(args.second, LogLevelFromString(logLevel))
+    ASSERT_EQ(args.second, LogLevelFromString(stringLogLevel))
 }
 
 // --- Commands tests ---
@@ -111,157 +199,65 @@ TEST(testCommandsActivateElement)
 {
     Commands commands;
 
-    const std::string info = "Inforamation";
-    std::string moveInfo = info;
-    commands.setInfo(std::move(moveInfo));
+    std::string commandName;
+    const int value = 1234;
+    int changesValue = 0;
+    std::function<void()> command([&changesValue, &value](){
+        changesValue = value;
+    });
+    commands.add(std::move(commandName), std::move(command));
+    commands.begin()->second();
 
-    ASSERT_EQ(commands.getInfo(), info);
+    ASSERT_EQ(changesValue, value);
 }
 
-// --- Renders tests ---
-// TEST(testRendererDrawMainLayer)
-// {
-
-// }
-
-// TEST(testRendererDrawLogTextInput)
-// {
-    
-// }
-
-// TEST(testRendererDrswLogLevels)
-// {
-    
-// }
-
-// TEST(testRendererDrawErrorText)
-// {
-    
-// }
-
-// TEST(testRendererDrawConfrim)
-// {
-    
-// }
-
 // --- Application tests ---
-class StreamAppRedirect
-{
-public:
-    StreamAppRedirect()
-    {
-        cinOld = std::cin.rdbuf(fakeCinBuffer.rdbuf());
-        coutOld = std::cout.rdbuf(nullptr);
-    }
-    void setFakeCinBufferForCreateLog(int mainMenuCommand, std::string &logText, int logLevel, char exitSymbol) 
-    { 
-        fakeCinBuffer << mainMenuCommand << "\n"; 
-        fakeCinBuffer << logText << "\n"; 
-        fakeCinBuffer << logLevel << "\n"; 
-        fakeCinBuffer << exitSymbol << "\n"; 
-    }
-    void setFakeCinBufferForChangeLogLevel(int mainMenuCommand, int logLevel, char exitSymbol)
-    {
-        fakeCinBuffer << mainMenuCommand << "\n";
-        fakeCinBuffer << logLevel << "\n"; 
-        fakeCinBuffer << exitSymbol << "\n"; 
-    }
-    void setFakeCinBufferForClearLog(int mainMenuCommand, char acceptSymbol, char exitSymbol)
-    {
-        fakeCinBuffer << mainMenuCommand << "\n";
-        fakeCinBuffer << acceptSymbol << "\n"; 
-        fakeCinBuffer << exitSymbol << "\n"; 
-    }
-    ~StreamAppRedirect()
-    {
-        std::cin.rdbuf(cinOld);
-        std::cout.rdbuf(coutOld);
-        std::cin.clear();
-        std::cout.clear();
-    }
-
-private:
-    std::streambuf* cinOld;
-    std::streambuf* coutOld;
-    std::stringstream fakeCinBuffer;
-};
-
-std::string pathToUnitTestApp;
-
 TEST(testApplicationExecCreateNewLog)
 {
-    std::string fileName = pathToUnitTestApp+"file.txt";
+    // file.clear();
 
-    std::ofstream clearFile(fileName, std::ios::out | std::ios::trunc);
-    clearFile.close();
-
-    int mainMenuCommandCreateLog = 1;
-    std::string logText = "Text";
-    LogLevel logLevel = LogLevel::WARNING;
-    char exitSymbol = 'q';
-
-    std::pair loggerParams = {fileName, LogLevel::INFO};
     Application app(loggerParams, exitSymbol);
 
-    StreamAppRedirect streamRedirect;
-    streamRedirect.setFakeCinBufferForCreateLog(mainMenuCommandCreateLog, logText, static_cast<int>(logLevel)+1, exitSymbol);
+    StreamRedirect streamRedirect;
+    streamRedirect.setFakeCinBufferForCreateLog();
 
     app.exec();
 
-    using namespace std::chrono_literals;
-    std::this_thread::sleep_for(30ms);
+    tt::sleep_for(30ms); // Waitiing to the worker thread to complete
     
-    std::ifstream fin(fileName);
     std::string newLogFile;
-    std::getline(fin, newLogFile);
-    fin.close();
-
-    std::filesystem::remove(fileName);
+    file.input(newLogFile);
 
     bool isLogFileMatchInputLog = (newLogFile.find(logText) != std::string::npos)
-        && (newLogFile.find(LogLevelAsString(logLevel)) != std::string::npos);
+        && (newLogFile.find(LogLevelAsString(static_cast<LogLevel>(logLevel-1))) != std::string::npos);
     ASSERT_TRUE(isLogFileMatchInputLog);
 }
 
 TEST(testApplicationExecChangeDefaultLogLevel)
 {
-    std::string fileName = pathToUnitTestApp+"file.txt";
+    file.clear();
 
-    std::ofstream clearFile(fileName, std::ios::out | std::ios::trunc);
-    clearFile.close();
-
-    int mainMenuCommandCreateLog = 1;
-    int mainMenuCommandChangeLogLevel = 2;
-    std::string logText = "Text";
-    LogLevel logLevel = LogLevel::WARNING;
-    char exitSymbol = 'q';
-
-    std::pair loggerParams = {fileName, LogLevel::INFO};
     Application app(loggerParams, exitSymbol);
 
     // Changing LogLevel
-    StreamAppRedirect streamRedirect;
-    streamRedirect.setFakeCinBufferForChangeLogLevel(mainMenuCommandChangeLogLevel, static_cast<int>(LogLevel::ERROR)+1, exitSymbol);
+    StreamRedirect streamRedirect;
+    streamRedirect.setFakeCinBufferForChangeLogLevel();
 
     app.exec();
 
-    using namespace std::chrono_literals;
-    std::this_thread::sleep_for(30ms);
+    tt::sleep_for(30ms); // Waitiing to the worker thread to complete
     // ----------------
 
     // Try to create log
-    streamRedirect.setFakeCinBufferForCreateLog(mainMenuCommandCreateLog, logText, static_cast<int>(logLevel)+1, exitSymbol);
+    streamRedirect.setFakeCinBufferForCreateLog();
 
     app.exec();
 
-    using namespace std::chrono_literals;
-    std::this_thread::sleep_for(30ms);
+    tt::sleep_for(30ms); // Waitiing to the worker thread to complete
     // ----------------
     
-    std::ifstream fin(fileName);
     std::string newLogFile;
-    std::getline(fin, newLogFile);
-    fin.close();
+    file.input(newLogFile);
 
     std::filesystem::remove(fileName);
 
@@ -270,48 +266,110 @@ TEST(testApplicationExecChangeDefaultLogLevel)
 
 TEST(testApplicationExecClearLogFile)
 {
-    std::string fileName = pathToUnitTestApp+"file.txt";
+    file.clear();
 
-    std::ofstream clearFile(fileName, std::ios::out | std::ios::trunc);
-    clearFile.close();
-
-    int mainMenuCommandCreateLog = 1;
-    int mainMenuCommandClearLog = 3;
-    std::string logText = "Text";
-    LogLevel logLevel = LogLevel::WARNING;
-    char acceptSymbol = 'y';
-    char exitSymbol = 'q';
-
-    std::pair loggerParams = {fileName, LogLevel::INFO};
     Application app(loggerParams, exitSymbol);
 
     // Create log
-    StreamAppRedirect streamRedirect;
-    streamRedirect.setFakeCinBufferForCreateLog(mainMenuCommandCreateLog, logText, static_cast<int>(logLevel)+1, exitSymbol);
+    StreamRedirect streamRedirect;
+    streamRedirect.setFakeCinBufferForCreateLog();
 
     app.exec();
 
-    using namespace std::chrono_literals;
-    std::this_thread::sleep_for(30ms);
+    tt::sleep_for(30ms); // Waitiing to the worker thread to complete
     // ----------------
 
     // Clear log
-    streamRedirect.setFakeCinBufferForClearLog(mainMenuCommandClearLog, acceptSymbol, exitSymbol);
+    streamRedirect.setFakeCinBufferForClearLog();
 
     app.exec();
 
-    using namespace std::chrono_literals;
-    std::this_thread::sleep_for(30ms);
+    tt::sleep_for(30ms); // Waitiing to the worker thread to complete
     // ----------------
 
-    std::ifstream fin(fileName);
     std::string newLogFile;
-    std::getline(fin, newLogFile);
-    fin.close();
+    file.input(newLogFile);
 
     std::filesystem::remove(fileName);
 
     ASSERT_EQ(newLogFile.size(), 0);
+}
+
+// --- Renders tests ---
+
+const std::string mainOutput = {
+    "\033[2J\033[H+--------------------+\n"
+    "| To exit, press 'q' |\n"
+    "+--------------------+\n"
+    "1.Сreate a new log message\n"
+    "2.Change default log level\n"
+    "3.Clear log file\n"
+    "Enter to continue...\n"
+};
+
+const std::string logMessageOutput = {
+    "\033[2J\033[HEnter message: "
+};
+
+const std::string logLevelOutput = {
+    "\033[2J\033[HSelect log level:\n"
+    "1.INFO\n"
+    "2.WARNING\n"
+    "3.ERROR\n"
+    "4.Keep selected (INFO)\n"
+    "Enter to continue...\n"
+};
+
+const std::string logClearOutput = {
+    "\033[2J\033[HTo clear the logging file, enter (y/Y) or enter (n/N) to cancel: "
+};
+
+TEST(testRendererDrawMainLayer)
+{
+    StreamRedirect streamRedirect;
+
+    Application app(loggerParams, exitSymbol);
+
+    streamRedirect.setFakeBufferForExit(exitSymbol);
+
+    app.exec();
+
+    std::string realOutput = streamRedirect.getStrFromCoutBuffer();
+    std::string originOutput = mainOutput;
+
+    ASSERT_EQ(originOutput, realOutput);
+}
+
+TEST(testRendererDrawCreateLog)
+{
+    StreamRedirect streamRedirect;
+    
+    streamRedirect.setFakeCinBufferForCreateLog();
+
+    Application app(loggerParams, exitSymbol);
+
+    app.exec();
+
+    std::string realOutput = streamRedirect.getStrFromCoutBuffer();
+    std::string originOutput = mainOutput + logMessageOutput + logLevelOutput + mainOutput;
+
+    ASSERT_EQ(originOutput, realOutput);
+}
+
+TEST(testRendererDrawConfrim)
+{
+    StreamRedirect streamRedirect;
+    
+    streamRedirect.setFakeCinBufferForClearLog();
+
+    Application app(loggerParams, exitSymbol);
+
+    app.exec();
+
+    std::string realOutput = streamRedirect.getStrFromCoutBuffer();
+    std::string originOutput = mainOutput + logClearOutput + mainOutput;
+
+    ASSERT_EQ(originOutput, realOutput);
 }
 
 int main(int argc, char **argv)
@@ -322,6 +380,12 @@ int main(int argc, char **argv)
         setDefaultText();
         return 1;
     }
+
     pathToUnitTestApp = argv[1];
+    fileName = pathToUnitTestApp+"file.txt";
+    loggerParams = {fileName, LogLevel::INFO};
+
     run_all_tests("Start 'logger' app tests:");
+
+    std::filesystem::remove(fileName);
 }
